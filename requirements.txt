@@ -1,5 +1,5 @@
-openai-whisper
-moviepy
 streamlit
-setuptools-rust
-triton
+openai-whisper
+moviepy==1.0.3
+numpy
+ImageMagick
