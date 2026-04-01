@@ -2,30 +2,26 @@ import streamlit as st
 import os
 import whisper
 import subprocess
+
+# --- CONFIGURAÇÃO DE AMBIENTE ANTES DE IMPORTAR MOVIEPY ---
+# Isso resolve o erro de "security policy" criando um arquivo de configuração local
+os.environ["MAGICK_CONFIGURE_PATH"] = "/tmp"
+
+policy_xml = """<policymap>
+  <policy domain="resource" name="memory" value="2GiB"/>
+  <policy domain="resource" name="map" value="4GiB"/>
+  <policy domain="resource" name="width" value="10KP"/>
+  <policy domain="resource" name="height" value="10KP"/>
+  <policy domain="path" rights="read|write" pattern="@*"/>
+  <policy domain="coder" rights="read|write" pattern="{GIF,JPEG,PNG,WEBP,MP4}"/>
+</policymap>"""
+
+with open("/tmp/policy.xml", "w") as f:
+    f.write(policy_xml)
+
+# Agora sim importamos o MoviePy
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-
-# =======================================================
-# FIX DEFINITIVO: DESTRAVAR IMAGEMAGICK E FONTES
-# =======================================================
-def fix_imagemagick():
-    # 1. Localiza a política de segurança
-    policy_path = "/etc/ImageMagick-6/policy.xml"
-    if os.path.exists(policy_path):
-        with open(policy_path, "r") as f:
-            content = f.read()
-        
-        # Força a permissão de leitura e escrita
-        new_content = content.replace('rights="none" pattern="@*"', 'rights="read|write" pattern="@*"')
-        
-        # Salva a nova política na pasta temporária
-        with open("/tmp/policy.xml", "w") as f:
-            f.write(new_content)
-        
-        # Avisa ao sistema para usar essa nova política
-        os.environ["MAGICK_CONFIGURE_PATH"] = "/tmp"
-
-fix_imagemagick()
-# =======================================================
+# ---------------------------------------------------------
 
 st.set_page_config(page_title="Matrix Editor IA", layout="wide")
 st.title("🎬 Matrix Editor IA")
@@ -47,11 +43,11 @@ if video_file:
     
     st.info("Processando transcrição...")
 
-    # Transcrição
     try:
         resultado = modelo.transcribe(temp_path, fp16=False, language="pt")
         texto_transcrito = resultado["text"]
         st.success("Texto detectado!")
+        st.text_area("Transcrição:", texto_transcrito)
     except Exception as e:
         st.error(f"Erro no Whisper: {e}")
         st.stop()
@@ -61,16 +57,17 @@ if video_file:
             try:
                 clip = VideoFileClip(temp_path)
                 
-                # LIMITA O TEXTO E MUDA A FONTE (Usando 'DejaVu-Sans-Bold' que é padrão no Linux)
-                txt = texto_transcrito[:80] + "..." if len(texto_transcrito) > 80 else texto_transcrito
+                # Texto formatado para caber na tela
+                txt = texto_transcrito[:100] + "..." if len(texto_transcrito) > 100 else texto_transcrito
                 
+                # IMPORTANTE: No Linux do Streamlit, use 'DejaVu-Sans' ou 'Liberation-Sans'
                 txt_clip = TextClip(
                     txt, 
-                    fontsize=40, 
+                    fontsize=35, 
                     color='yellow', 
-                    font='DejaVu-Sans-Bold', # FONTE SEGURA PARA LINUX
+                    font='DejaVu-Sans', 
                     method='caption',
-                    size=(clip.w * 0.8, None)
+                    size=(clip.w * 0.9, None)
                 ).set_pos('center').set_duration(clip.duration)
 
                 video_final = CompositeVideoClip([clip, txt_clip])
@@ -82,4 +79,5 @@ if video_file:
                     st.download_button("📥 Baixar Vídeo", file, "matrix_video.mp4")
                     
             except Exception as e:
-                st.error(f"Erro na edição: {e}")
+                st.error(f"Erro na edição: {str(e)}")
+
