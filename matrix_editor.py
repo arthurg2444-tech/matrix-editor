@@ -14,69 +14,61 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎬 MATRIX AI: Editor de Elite V8")
+st.title("🎬 MATRIX AI: Editor de Elite V9")
 
 with st.sidebar:
-    st.header("⚙️ Ajustes Finais")
+    st.header("⚙️ Ajustes")
     cor_fonte = st.color_picker("Cor da Letra", "#FFFFFF")
-    tamanho_fonte = st.slider("Tamanho da Letra", 20, 70, 35) # Reduzi o padrão para não cortar
-    posicao_y_slider = st.slider("Altura (Y)", 0.6, 0.95, 0.8)
+    tamanho_fonte = st.slider("Tamanho", 20, 60, 30)
+    posicao_y = st.slider("Altura", 0.6, 0.95, 0.8)
 
-arquivo_video = st.file_uploader("📥 Arraste seu vídeo aqui", type=["mp4", "mov", "avi"])
+arquivo_video = st.file_uploader("📥 Arraste seu vídeo", type=["mp4", "mov", "avi"])
 
 if arquivo_video:
     with open("temp_video.mp4", "wb") as f:
         f.write(arquivo_video.read())
     
-    col1, col2 = st.columns(2)
-    with col1: st.info("Original"); st.video("temp_video.mp4")
-
-    if st.button("🚀 RENDERIZAR VÍDEO PROFISSIONAL"):
-        with st.spinner("🧠 IA MATRIX: Usando modelo de alta precisão..."):
+    if st.button("🚀 RENDERIZAR AGORA"):
+        with st.spinner("🧠 IA MATRIX: Processando..."):
             video = VideoFileClip("temp_video.mp4")
             
-            # PASSO 1: MODELO 'SMALL' PARA PORTUGUÊS PRECISO
-            modelo = whisper.load_model("small") # Troquei o 'base' pelo 'small'
-            resultado = modelo.transcribe("temp_video.mp4", word_timestamps=True, language='pt')
+            # MODELO BASE + PROMPT EM PORTUGUÊS (Rápido e Preciso)
+            modelo = whisper.load_model("base")
+            resultado = modelo.transcribe(
+                "temp_video.mp4", 
+                word_timestamps=True, 
+                language='pt',
+                initial_prompt="Este é um vídeo em português brasileiro, focado em alta retenção."
+            )
             
-            # PASSO 2: CÁLCULO DE ÁREA SEGURA
-            largura_segura = int(video.w * 0.8) 
-            pos_y_pixel = int(video.h * posicao_y_slider)
+            largura_segura = int(video.w * 0.8)
+            pos_y_pixel = int(video.h * posicao_y)
             
             legendas = []
             for segmento in resultado['segments']:
                 for palavra in segmento['words']:
-                    texto = palavra['word'].strip().upper()
-                    
-                    # PASSO 3: TEXTO SEM STROKE (BORDA) PARA NÃO CORTAR
-                    # O Linux corta letras quando a borda é muito grossa
+                    # MÉTODO SEGURO: Sem bordas complexas para não bugar no Linux
                     txt_clip = (TextClip(
-                        text=texto, 
+                        text=palavra['word'].strip().upper(), 
                         font_size=tamanho_fonte, 
                         color=cor_fonte,
-                        method='label' # Ajuste automático ao texto
-                    ).with_start(palavra['start'])
-                     .with_end(palavra['end']))
+                        method='label'
+                    ).with_start(palavra['start']).with_end(palavra['end']))
 
-                    # Se a palavra ainda for grande demais, reduzimos a escala
                     if txt_clip.w > largura_segura:
-                        fator = largura_segura / txt_clip.w
-                        txt_clip = txt_clip.with_display_aspect_ratio(fator)
+                        txt_clip = txt_clip.with_display_aspect_ratio(largura_segura / txt_clip.w)
 
                     txt_clip = txt_clip.with_position(('center', pos_y_pixel))
                     legendas.append(txt_clip)
 
-            # RENDERIZAÇÃO
             video_final = CompositeVideoClip([video] + legendas)
-            saida = "video_matrix_v8.mp4"
+            saida = "video_final.mp4"
             video_final.write_videofile(saida, codec="libx264", audio_codec="aac", fps=24, logger=None)
             
-            st.success("✅ Edição Concluída com Alta Precisão!")
+            st.success("✅ Edição Concluída!")
             st.video(saida)
             with open(saida, "rb") as file:
-                st.download_button("🔥 BAIXAR VÍDEO AGORA", file, "video_matrix_final.mp4")
-
-
+                st.download_button("🔥 BAIXAR AGORA", file, "video_final.mp4")
 
 
 
