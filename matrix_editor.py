@@ -1,74 +1,60 @@
 import streamlit as st
 import whisper
+from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
 import os
-from moviepy import VideoFileClip, TextClip, CompositeVideoClip
 
-# --- INTERFACE DE LUXO ---
-st.set_page_config(page_title="MATRIX AI | Final Pro", page_icon="🎬", layout="wide")
+# Configuração da página
+st.set_page_config(page_title="Matrix Editor Elite", layout="wide")
+st.title("🎬 Matrix Editor - Legendas Automáticas")
 
-st.markdown("""
-    <style>
-    .main { background-color: #0e1117; color: #ffffff; }
-    .stButton>button { width: 100%; border-radius: 12px; height: 3.5em; background-color: #00ff41; color: black; font-weight: bold; border: none; }
-    .stSidebar { background-color: #161b22; border-right: 1px solid #30363d; }
-    </style>
-    """, unsafe_allow_html=True)
+# Carrega o modelo do Whisper (base é rápido e bom)
+@st.cache_resource
+def load_model():
+    return whisper.load_model("base")
 
-st.title("🎬 MATRIX AI: Editor de Elite V9")
+modelo = load_model()
 
-with st.sidebar:
-    st.header("⚙️ Ajustes")
-    cor_fonte = st.color_picker("Cor da Letra", "#FFFFFF")
-    tamanho_fonte = st.slider("Tamanho", 20, 60, 30)
-    posicao_y = st.slider("Altura", 0.6, 0.95, 0.8)
+video_postado = st.file_uploader("Upload do Vídeo", type=["mp4", "mov", "avi"])
 
-arquivo_video = st.file_uploader("📥 Arraste seu vídeo", type=["mp4", "mov", "avi"])
-
-if arquivo_video:
+if video_postado:
+    # 1. Salva o vídeo temporariamente
     with open("temp_video.mp4", "wb") as f:
-        f.write(arquivo_video.read())
-    
-    if st.button("🚀 RENDERIZAR AGORA"):
-        with st.spinner("🧠 IA MATRIX: Processando..."):
+        f.write(video_postado.getbuffer())
+
+    if st.button("Gerar Vídeo com Legenda"):
+        with st.spinner("Transcrevendo e Editando..."):
+            # 2. Transcrição
+            resultado = modelo.transcribe("temp_video.mp4", initial_prompt="Vídeo em português brasileiro, alta retenção.")
+            
+            # 3. Edição do Vídeo
             video = VideoFileClip("temp_video.mp4")
             
-            # MODELO BASE + PROMPT EM PORTUGUÊS (Rápido e Preciso)
-            modelo = whisper.load_model("base")
-            resultado = modelo.transcribe(
-                "temp_video.mp4", 
-                word_timestamps=True, 
-                language='pt',
-                initial_prompt="Este é um vídeo em português brasileiro, focado em alta retenção."
-            )
-            
-            largura_segura = int(video.w * 0.8)
-            pos_y_pixel = int(video.h * posicao_y)
-            
-            legendas = []
-            for segmento in resultado['segments']:
-                for palavra in segmento['words']:
-                    # MÉTODO SEGURO: Sem bordas complexas para não bugar no Linux
-                    txt_clip = (TextClip(
-                        text=palavra['word'].strip().upper(), 
-                        font_size=tamanho_fonte, 
-                        color=cor_fonte,
-                        method='label'
-                    ).with_start(palavra['start']).with_end(palavra['end']))
+            # CONFIGURAÇÃO DA LEGENDA (CORREÇÃO DO CORTE)
+            def gerar_legenda(txt):
+                return TextClip(
+                    txt,
+                    fontsize=40,
+                    color='yellow',
+                    font='Arial-Bold',
+                    method='caption',      # Quebra linha automático
+                    size=(video.w * 0.8, None), # Largura de 80% do vídeo (evita corte lateral)
+                    align='center'
+                ).set_duration(video.duration).set_position(('center', video.h * 0.75)) # Posição a 75% da altura (sobe a legenda)
 
-                    if txt_clip.w > largura_segura:
-                        txt_clip = txt_clip.with_display_aspect_ratio(largura_segura / txt_clip.w)
+            # Criando o clipe de texto com o resultado do Whisper
+            texto_transcrito = resultado['text'].strip()
+            txt_clip = gerar_legenda(texto_transcrito)
 
-                    txt_clip = txt_clip.with_position(('center', pos_y_pixel))
-                    legendas.append(txt_clip)
+            # Sobreposição
+            final_video = CompositeVideoClip([video, txt_clip])
+            final_video.write_videofile("video_legendado.mp4", codec="libx264", audio_codec="aac")
 
-            video_final = CompositeVideoClip([video] + legendas)
-            saida = "video_final.mp4"
-            video_final.write_videofile(saida, codec="libx264", audio_codec="aac", fps=24, logger=None)
+            # Exibe o resultado
+            st.success("Pronto!")
+            st.video("video_legendado.mp4")
             
-            st.success("✅ Edição Concluída!")
-            st.video(saida)
-            with open(saida, "rb") as file:
-                st.download_button("🔥 BAIXAR AGORA", file, "video_final.mp4")
+            with open("video_legendado.mp4", "rb") as file:
+                st.download_button("Baixar Vídeo Legendado", file, "video_final.mp4")
 
 
 
