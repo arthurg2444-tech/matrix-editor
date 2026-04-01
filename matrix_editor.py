@@ -3,9 +3,7 @@ import whisper
 import os
 from moviepy import VideoFileClip, TextClip, CompositeVideoClip
 
-# --- CONFIGURAÇÃO ---
-os.environ["IMAGE_MAGICK_BINARY"] = r"C:\Program Files\ImageMagick-7.1.1-Q16-HDRI\magick.exe"
-
+# --- CONFIGURAÇÃO PARA NUVEM ---
 st.set_page_config(page_title="Matrix Editor Elite", layout="centered")
 
 st.title("🎬 Matrix Editor: Legendas de Elite")
@@ -15,7 +13,7 @@ st.write("Suba seu vídeo e deixe a IA gerar as legendas dinâmicas.")
 arquivo_video = st.file_uploader("Escolha um vídeo (MP4)", type=["mp4", "mov", "avi"])
 
 if arquivo_video:
-    # Salva o vídeo temporariamente para processar
+    # Salva o vídeo temporariamente
     with open("temp_video.mp4", "wb") as f:
         f.write(arquivo_video.read())
     
@@ -29,25 +27,25 @@ if arquivo_video:
             resultado = modelo.transcribe("temp_video.mp4", word_timestamps=True, fp16=False)
             video = VideoFileClip("temp_video.mp4")
             
-            # Ajuste de layout automático
+            # Layout Adaptativo
             if video.w < video.h:
-                largura_maxima, tamanho_fonte, posicao_y = int(video.w * 0.8), int(video.w * 0.09), int(video.h * 0.75)
+                largura, tam, pos_y = int(video.w * 0.8), int(video.w * 0.09), int(video.h * 0.75)
             else:
-                largura_maxima, tamanho_fonte, posicao_y = int(video.w * 0.6), int(video.h * 0.10), int(video.h * 0.85)
+                largura, tam, pos_y = int(video.w * 0.6), int(video.h * 0.10), int(video.h * 0.85)
 
             legendas = []
             for segmento in resultado['segments']:
                 for palavra in segmento['words']:
+                    # Removemos o caminho C: para usar a fonte padrão do servidor
                     txt_clip = (TextClip(
                         text=palavra['word'].strip().upper(), 
-                        font_size=tamanho_fonte, 
+                        font_size=tam, 
                         color='white', 
-                        font=r"C:\Windows\Fonts\impact.ttf",
                         stroke_color='black',
                         stroke_width=1.5,
                         method='caption',
-                        size=(largura_maxima, None) 
-                    ).with_start(palavra['start']).with_end(palavra['end']).with_position(('center', posicao_y)))
+                        size=(largura, None) 
+                    ).with_start(palavra['start']).with_end(palavra['end']).with_position(('center', pos_y)))
                     legendas.append(txt_clip)
 
             video_final = CompositeVideoClip([video] + legendas)
