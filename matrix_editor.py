@@ -3,62 +3,53 @@ import whisper
 import os
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
 
-# 1. Configuração Inicial
+# Configuração da página
 st.set_page_config(page_title="Matrix Editor", layout="wide")
-st.title("🎬 Matrix Editor - Legendas Corrigidas")
+st.title("🎬 Matrix Editor - Versão Estável")
 
-# Carrega o modelo do Whisper (Cache para não travar o app)
+# Carrega o modelo do Whisper
 @st.cache_resource
-def load_whisper():
+def carregar_modelo():
     return whisper.load_model("base")
 
-modelo = load_whisper()
+modelo = carregar_modelo()
 
-# 2. Upload do Vídeo
 video_postado = st.file_uploader("Suba seu vídeo aqui", type=["mp4", "mov", "avi"])
 
 if video_postado:
-    # Salva o arquivo temporário para o Whisper e MoviePy lerem
+    # Salva o arquivo temporário no servidor
     with open("temp_video.mp4", "wb") as f:
         f.write(video_postado.getbuffer())
 
-    if st.button("Gerar Legendas"):
-        with st.spinner("Processando... Isso pode levar um minuto."):
+    if st.button("Gerar Vídeo com Legenda"):
+        with st.spinner("Processando..."):
             try:
-                # 3. Transcrição com Whisper
+                # 1. Transcrição com Whisper
                 resultado = modelo.transcribe("temp_video.mp4")
-                texto_final = resultado['text'].strip()
+                texto_transcrito = resultado['text'].strip()
 
-                # 4. Edição com MoviePy
+                # 2. Edição do Vídeo (Ajuste para não cortar legenda)
                 video = VideoFileClip("temp_video.mp4")
                 
-                # CONFIGURAÇÃO DA LEGENDA (CORRIGINDO O CORTE)
                 txt_clip = TextClip(
-                    texto_final,
+                    texto_transcrito,
                     fontsize=40,
                     color='yellow',
-                    font='DejaVu-Sans-Bold', # Fonte padrão do servidor Streamlit
-                    method='caption',        # Quebra de linha automática
-                    size=(video.w * 0.8, None), # Largura de 80% (evita cortes laterais)
-                    align='center'
-                ).set_duration(video.duration).set_position(('center', video.h * 0.70)) # Sobe a legenda para 70% da altura
+                    method='caption',
+                    size=(int(video.w * 0.8), None)
+                ).set_duration(video.duration).set_position(('center', int(video.h * 0.7)))
 
-                # Junta o vídeo original com a legenda
-                video_com_legenda = CompositeVideoClip([video, txt_clip])
-                
-                # Salva o resultado final
+                # Junta o vídeo com a legenda
+                final_video = CompositeVideoClip([video, txt_clip])
                 output_path = "video_final.mp4"
-                video_com_legenda.write_videofile(output_path, codec="libx264", audio_codec="aac")
+                final_video.write_videofile(output_path, codec="libx264", audio_codec="aac", fps=video.fps)
 
-                # 5. Exibição e Download
-                st.success("Vídeo editado com sucesso!")
+                # Exibe o resultado
                 st.video(output_path)
+                st.success("Vídeo pronto!")
                 
                 with open(output_path, "rb") as file:
-                    st.download_button("Baixar Vídeo Legendado", file, "video_matrix.mp4")
+                    st.download_button("Baixar Vídeo", file, "video_legendado.mp4")
 
             except Exception as e:
-                st.error(f"Ocorreu um erro no processamento: {e}")
- import os
-# Configuração para o Streamlit encontrar o ImageMagick no Linux
-os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
+                st.error(f"Erro no processamento: {e}")
