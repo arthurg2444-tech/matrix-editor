@@ -1,79 +1,64 @@
 import streamlit as st
-import whisper
 import os
-import re
+import whisper
 from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip
-from moviepy.config import change_settings
 
-# 1. CORREÇÃO DE SEGURANÇA DO IMAGEMAGICK (Resolve o erro "policy.xml")
-policy_path = "/etc/ImageMagick-6/policy.xml"
-if not os.path.exists(policy_path):
-    policy_path = "/etc/ImageMagick-7/policy.xml"
+# --- FIX: DESTRAVAR IMAGEMAGICK NO STREAMLIT CLOUD ---
+def fix_imagemagick():
+    old_policy = "/etc/ImageMagick-6/policy.xml"
+    new_policy = "/tmp/policy.xml"
+    if os.path.exists(old_policy):
+        with open(old_policy, "r") as f:
+            content = f.read()
+        # Remove a trava de segurança para leitura/escrita
+        content = content.replace('rights="none" pattern="@*"', 'rights="read|write" pattern="@*"')
+        with open(new_policy, "w") as f:
+            f.write(content)
+        os.environ["MAGICK_CONFIGURE_PATH"] = "/tmp"
 
-if os.path.exists(policy_path):
-    with open(policy_path, "r") as f:
-        policy_content = f.read()
-    
-    # Desativa a restrição de leitura/escrita para textos
-    new_policy = re.sub(r'<policy domain="path" rights="none" pattern="@\*"\s?/>', 
-                        '<policy domain="path" rights="read|write" pattern="@*"/>', 
-                        policy_content)
-    
-    with open("/tmp/policy.xml", "w") as f:
-        f.write(new_policy)
-    
-    os.environ["MAGICK_CONFIGURE_PATH"] = "/tmp"
+fix_imagemagick()
+# ---------------------------------------------------
 
-# 2. CONFIGURAÇÃO DO BINÁRIO
-if os.path.exists("/usr/bin/convert"):
-    change_settings({"IMAGEMAGICK_BINARY": "/usr/bin/convert"})
+st.title("Matrix Editor IA 🎬")
 
-# --- INÍCIO DO APP ---
-st.set_page_config(page_title="Matrix Editor", layout="wide")
-st.title("🎬 Matrix Editor - Versão Final")
+# Carregador de Vídeo
+video_file = st.file_uploader("Suba seu vídeo aqui", type=["mp4", "mov", "avi"])
 
-@st.cache_resource
-def carregar_modelo():
-    return whisper.load_model("base")
-
-modelo = carregar_modelo()
-
-video_postado = st.file_uploader("Suba seu vídeo", type=["mp4", "mov", "avi"])
-
-if video_postado:
+if video_file:
+    # 1. Salva o vídeo fisicamente para o Whisper e MoviePy acharem
     with open("temp_video.mp4", "wb") as f:
-        f.write(video_postado.getbuffer())
+        f.write(video_file.getbuffer())
+    
+    st.success("Vídeo carregado! Processando...")
 
-    if st.button("Gerar Vídeo com Legenda"):
-        with st.spinner("Processando..."):
-            try:
-                # Transcrição
-                resultado = modelo.transcribe("temp_video.mp4")
-                texto = resultado['text'].strip()
+    # 2. Carrega o modelo do Whisper
+    @st.cache_resource
+    def load_model():
+        return whisper.load_model("base")
 
-                video = VideoFileClip("temp_video.mp4")
-                
-                # LEGENDA CORRIGIDA (Amarela, Centralizada e sem cortes)
-                txt_clip = TextClip(
-                    texto,
-                    fontsize=45,
-                    color='yellow',
-                    font='DejaVu-Sans-Bold',
-                    method='caption',
-                    size=(int(video.w * 0.8), None),
-                    align='center'
-                ).set_duration(video.duration).set_position(('center', int(video.h * 0.72)))
+    modelo = load_model()
 
-                final = CompositeVideoClip([video, txt_clip])
-                output = "video_legendado.mp4"
-                final.write_videofile(output, codec="libx264", audio_codec="aac", fps=video.fps)
+    # 3. Transcreve (Agora com FFmpeg garantido pelo packages.txt)
+    with st.spinner("Transcrevendo áudio..."):
+        resultado = modelo.transcribe(
+            "temp_video.mp4",
+            fp16=False,
+            language="pt",
+            initial_prompt="Este é um vídeo em português brasileiro, focado em alta retenção."
+        )
+    
+    st.write("Texto detectado:", resultado["text"])
 
-                st.video(output)
-                st.success("Sucesso!")
-                
-                with open(output, "rb") as file:
-                    st.download_button("Baixar Vídeo", file, "matrix_final.mp4")
-
-            except Exception as e:
-                st.error(f"Erro: {e}")
+    # 4. Exemplo de Edição com MoviePy (Usando o ImageMagick destravado)
+    if st.button("Gerar Clipe com Legenda"):
+        clip = VideoFileClip("temp_video.mp4")
+        
+        # Criando uma legenda simples no centro
+        txt_clip = TextClip(resultado["text"][:50], fontsize=70, color='yellow', font='Arial-Bold')
+        txt_clip = txt_clip.set_pos('center').set_duration(clip.duration)
+        
+        video_final = CompositeVideoClip([clip, txt_clip])
+        video_final.write_videofile("output_matrix.mp4", fps=24, codec="libx264")
+        
+        st.video("output_matrix.mp4")
 
