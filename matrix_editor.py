@@ -59,3 +59,6 @@ if video_postado:
 
             except Exception as e:
                 st.error(f"Ocorreu um erro no processamento: {e}")
+ import os
+# Configuração para o Streamlit encontrar o ImageMagick no Linux
+os.environ["IMAGEMAGICK_BINARY"] = "/usr/bin/convert"
