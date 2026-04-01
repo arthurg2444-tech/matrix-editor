@@ -3,27 +3,25 @@ import whisper
 import os
 from moviepy import VideoFileClip, TextClip, CompositeVideoClip
 
-# --- INTERFACE PREMIUM ---
-st.set_page_config(page_title="MATRIX AI | Pro Editor", page_icon="🎬", layout="wide")
+# --- INTERFACE DE LUXO ---
+st.set_page_config(page_title="MATRIX AI | Final Pro", page_icon="🎬", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.5em; background-color: #00ff41; color: black; font-weight: bold; }
-    .stSidebar { background-color: #161b22; }
+    .stButton>button { width: 100%; border-radius: 12px; height: 3.5em; background-color: #00ff41; color: black; font-weight: bold; border: none; }
+    .stSidebar { background-color: #161b22; border-right: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎬 MATRIX AI: Video Editor Pro")
+st.title("🎬 MATRIX AI: Editor de Elite V8")
 
-# --- CONFIGURAÇÕES LATERAIS ---
 with st.sidebar:
-    st.header("⚙️ Ajustes de Elite")
-    cor_fonte = st.color_picker("Cor do Texto", "#FFFFFF")
-    tamanho_fonte = st.slider("Tamanho da Fonte", 30, 90, 55)
-    posicao_y = st.slider("Posição (Y)", 0.5, 0.95, 0.80)
+    st.header("⚙️ Ajustes Finais")
+    cor_fonte = st.color_picker("Cor da Letra", "#FFFFFF")
+    tamanho_fonte = st.slider("Tamanho da Letra", 20, 70, 35) # Reduzi o padrão para não cortar
+    posicao_y_slider = st.slider("Altura (Y)", 0.6, 0.95, 0.8)
 
-# --- ÁREA DE UPLOAD ---
 arquivo_video = st.file_uploader("📥 Arraste seu vídeo aqui", type=["mp4", "mov", "avi"])
 
 if arquivo_video:
@@ -31,53 +29,52 @@ if arquivo_video:
         f.write(arquivo_video.read())
     
     col1, col2 = st.columns(2)
-    with col1: st.info("Preview Original"); st.video("temp_video.mp4")
+    with col1: st.info("Original"); st.video("temp_video.mp4")
 
-    if st.button("🚀 GERAR VÍDEO EM PORTUGUÊS"):
-        with st.spinner("🧠 IA MATRIX processando em Português..."):
+    if st.button("🚀 RENDERIZAR VÍDEO PROFISSIONAL"):
+        with st.spinner("🧠 IA MATRIX: Usando modelo de alta precisão..."):
             video = VideoFileClip("temp_video.mp4")
             
-            # IA Transcrição FORÇANDO PORTUGUÊS
-            modelo = whisper.load_model("base")
-            # O segredo está aqui: language='pt'
+            # PASSO 1: MODELO 'SMALL' PARA PORTUGUÊS PRECISO
+            modelo = whisper.load_model("small") # Troquei o 'base' pelo 'small'
             resultado = modelo.transcribe("temp_video.mp4", word_timestamps=True, language='pt')
             
-            largura_maxima = int(video.w * 0.85) # 85% da tela
-            pos_y_pixel = int(video.h * posicao_y)
+            # PASSO 2: CÁLCULO DE ÁREA SEGURA
+            largura_segura = int(video.w * 0.8) 
+            pos_y_pixel = int(video.h * posicao_y_slider)
             
             legendas = []
             for segmento in resultado['segments']:
                 for palavra in segmento['words']:
-                    texto_limpo = palavra['word'].strip().upper()
+                    texto = palavra['word'].strip().upper()
                     
-                    # NOVO MÉTODO: Label + Margem de Segurança
+                    # PASSO 3: TEXTO SEM STROKE (BORDA) PARA NÃO CORTAR
+                    # O Linux corta letras quando a borda é muito grossa
                     txt_clip = (TextClip(
-                        text=texto_limpo, 
+                        text=texto, 
                         font_size=tamanho_fonte, 
-                        color=cor_fonte, 
-                        stroke_color='black',
-                        stroke_width=2,
-                        method='label' # Label ajusta o tamanho ao texto
+                        color=cor_fonte,
+                        method='label' # Ajuste automático ao texto
                     ).with_start(palavra['start'])
                      .with_end(palavra['end']))
-                    
-                    # Garante que se a palavra for gigante, ela reduza para caber nos 85%
-                    if txt_clip.w > largura_maxima:
-                        txt_clip = txt_clip.with_display_aspect_ratio(largura_maxima / txt_clip.w)
-                        
+
+                    # Se a palavra ainda for grande demais, reduzimos a escala
+                    if txt_clip.w > largura_segura:
+                        fator = largura_segura / txt_clip.w
+                        txt_clip = txt_clip.with_display_aspect_ratio(fator)
+
                     txt_clip = txt_clip.with_position(('center', pos_y_pixel))
                     legendas.append(txt_clip)
 
-            # Renderização
+            # RENDERIZAÇÃO
             video_final = CompositeVideoClip([video] + legendas)
-            saida = "video_final_pt.mp4"
+            saida = "video_matrix_v8.mp4"
             video_final.write_videofile(saida, codec="libx264", audio_codec="aac", fps=24, logger=None)
             
-            st.success("✅ Edição Concluída!")
+            st.success("✅ Edição Concluída com Alta Precisão!")
             st.video(saida)
             with open(saida, "rb") as file:
-                st.download_button("🔥 BAIXAR VÍDEO EDITADO", file, "matrix_editado.mp4")
-
+                st.download_button("🔥 BAIXAR VÍDEO AGORA", file, "video_matrix_final.mp4")
 
 
 
